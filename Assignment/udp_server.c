@@ -41,17 +41,27 @@ int main(int argc, char *argv[])
     memcpy(&hdr, pkt, sizeof(hdr));
     unsigned char *payload = pkt + sizeof(hdr);
 
+    int cycle[3] = {1, 2, 3};
+    int cidx = 0;
+    int got_in_cycle = 0;
+
     if (hdr.seq == expected_seq)
     {
       fwrite(payload, 1, hdr.len, out);
       total_bytes += hdr.len;
       expected_seq++;
+      got_in_cycle++;
       if (hdr.fin)
         fin_seen = 1;
     }
 
-    ack_t ack = {.batch_id = hdr.batch_id, .next_seq = expected_seq};
-    sendto(sock, &ack, sizeof(ack), 0, (struct sockaddr *)&cli, clen);
+    if (got_in_cycle >= cycle[cidx])
+    {
+      ack_t ack = {.batch_id = hdr.batch_id, .next_seq = expected_seq};
+      sendto(sock, &ack, sizeof(ack), 0, (struct sockaddr *)&cli, clen);
+      got_in_cycle = 0;
+      cidx = (cidx + 1) % 3;
+    }
 
     if (fin_seen && hdr.seq + 1 == expected_seq)
       break;
